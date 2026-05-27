@@ -53,8 +53,24 @@ fn_out = cp_gunzip(pth_data, flag);
 fn_MTw = spm_select('FPListRec',pth_data,'^sub.*MTw.*-1_echo-1.*mag_MPM.nii$');
 fn_PDw = spm_select('FPListRec',pth_data,'^sub.*PDw.*-1_echo-1.*mag_MPM.nii$');
 fn_T1w = spm_select('FPListRec',pth_data,'^sub.*T1w.*-1_echo-1.*mag_MPM.nii$');
+
+% removing the troublesome subjects, for the moment
+to_remove = [70 71];
+fn_MTw(to_remove,:) = [];
+fn_PDw(to_remove,:) = [];
+fn_T1w(to_remove,:) = [];
+
+nfn_MTw = size(fn_MTw,1);
+nfn_PDw = size(fn_PDw,1);
+nfn_T1w = size(fn_T1w,1);
+
+if nfn_MTw~=nfn_PWw || nfn_MTw~=nfn_T1w
+    error('Mismatched number of images.')
+end
+
 % MPRAGE T1w images
 fn_MPR = spm_select('FPListRec',pth_data,'^sub.*-1_T1w.nii$');
+fn_MPR(to_remove,:) = [];
 
 % Check those having a "run-2"
 fn_MTw_r2 = spm_select('FPListRec',pth_data,'^sub.*MTw.*-2_echo-1.*mag_MPM.nii$');
@@ -63,19 +79,27 @@ fn_T1w_r2 = spm_select('FPListRec',pth_data,'^sub.*T1w.*-2_echo-1.*mag_MPM.nii$'
 
 % Apply MPRAGE-like
 params = struct(...
-    'lambda', NaN, ...
+    'lambda', [NaN 1 30 50 60 70 100 200 400], ...
     'indiv', false, ...
     'thresh', [], ...
     'coreg', false, ...
     'BIDSform', false);
 
-% Simply apply to check it works on first 5 subjects
-fn_MPR = '';
-for i_sub = 1:5
-    fn_in = char(fn_T1w(ii,:),fn_MTw(ii,:),fn_PDw(ii,:));
-    fn_out = hmri_MPRAGElike(fn_in,params);
-    fn_MPR = char(fn_MPR,fn_out);
+% Simply apply to check it works a bunch of subjects
+fn_MPRl = cell(nfn_MTw,1);
+est_lambda = zeros(nfn_MTw,1);
+fprintf('\nDealing with %d subjects: \n',nfn_MTw)
+for i_sub = 1:5 % nfn_MTw %
+    fn_in = char(fn_T1w(i_sub,:),fn_MTw(i_sub,:),fn_PDw(i_sub,:));
+    [fn_out,est_lambda(i_sub)] = hmri_MPRAGElike(fn_in,params);
+    fn_MPRl{i_sub} = fn_out;
+    fprintf('\t %d / %d \n',i_sub,nfn_MTw)
 end
+fprintf('\n')
 fn_MPR(1,:) = [];
 
+val_lambda = est_lambda;
+save val_lambda val_lambda
 
+figure, hist(val_lambda)
+fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
