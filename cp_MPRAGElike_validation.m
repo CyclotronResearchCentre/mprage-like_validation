@@ -90,13 +90,25 @@ params = struct(...
     'coreg', false, ...
     'BIDSform', false);
 
-% Simply apply to check it works a bunch of subjects
+% All lambda values to test 
+% -> files labelled with lambda values + json file with lambda values
+% params.lambda = [1 30 50 60 70 100 200 400];
+% Find the optimal lambda value -> just json file with lambda value
+params.lambda = NaN;
+
+% Apply on a bunch of subjects, collect 
+% - file name sof generated images
+% - estimated lambda value if returned
 fn_MPRl = cell(nfn_MTw,1);
 est_lambda = zeros(nfn_MTw,1);
 fprintf('\nDealing with %d subjects: \n',nfn_MTw)
 for i_sub = 1:nfn_MTw % 5 % 
     fn_in = char(fn_T1w(i_sub,:),fn_MTw(i_sub,:),fn_PDw(i_sub,:));
-    [fn_out,est_lambda(i_sub)] = hmri_MPRAGElike(fn_in,params);
+    if any(isnan(params.lambda))
+        [fn_out,est_lambda(i_sub)] = hmri_MPRAGElike(fn_in,params);
+    else
+        fn_out = hmri_MPRAGElike(fn_in,params);
+    end
     fn_MPRl{i_sub} = fn_out;
     fprintf('\t %d / %d \n',i_sub,nfn_MTw)
 end
