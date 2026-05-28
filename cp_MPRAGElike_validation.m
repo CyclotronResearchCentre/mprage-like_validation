@@ -30,7 +30,6 @@ fn_MPR = spm_select('FPListRec',pth_dataCOFITAGEfull,'^sub.*_T1w\.');
 % Note that 
 % - some subjects have 2 runs for some MPM acquisition.
 % - there are more subjects with MPRAGE than MPM data.
-% - for some sujects (70 & 71) MPM images are misalagned with each other 
 
 % Copy all files, keeping the folder structure but changing the root folder
 fn_all = char(fn_MTw,fn_PDw,fn_T1w,fn_MPR);
@@ -57,12 +56,6 @@ fn_MTw = spm_select('FPListRec',pth_data,'^sub.*MTw.*-1_echo-1.*mag_MPM.nii$');
 fn_PDw = spm_select('FPListRec',pth_data,'^sub.*PDw.*-1_echo-1.*mag_MPM.nii$');
 fn_T1w = spm_select('FPListRec',pth_data,'^sub.*T1w.*-1_echo-1.*mag_MPM.nii$');
 
-% removing the troublesome subjects, for the moment
-to_remove = [70 71];
-fn_MTw(to_remove,:) = [];
-fn_PDw(to_remove,:) = [];
-fn_T1w(to_remove,:) = [];
-
 nfn_MTw = size(fn_MTw,1);
 nfn_PDw = size(fn_PDw,1);
 nfn_T1w = size(fn_T1w,1);
@@ -73,7 +66,13 @@ end
 
 % MPRAGE T1w images
 fn_MPR = spm_select('FPListRec',pth_data,'^sub.*-1_T1w.nii$');
-fn_MPR(to_remove,:) = [];
+
+% % removing the troublesome subjects, for the moment
+% to_remove = [70 71];
+% fn_MTw(to_remove,:) = [];
+% fn_PDw(to_remove,:) = [];
+% fn_T1w(to_remove,:) = [];
+% fn_MPR(to_remove,:) = [];
 
 % Check those having a "run-2"
 fn_MTw_r2 = spm_select('FPListRec',pth_data,'^sub.*MTw.*-2_echo-1.*mag_MPM.nii$');
@@ -95,6 +94,8 @@ params = struct(...
 % params.lambda = [1 30 50 60 70 100 200 400];
 % Find the optimal lambda value -> just json file with lambda value
 params.lambda = NaN;
+% test case where 2 values of lambda are identical
+% params.lambda = [60 60];
 
 % Apply on a bunch of subjects, collect 
 % - file name sof generated images
