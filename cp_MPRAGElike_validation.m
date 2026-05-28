@@ -8,26 +8,29 @@ spm_jobman('initcfg')
 % Some pathes
 pth_MPRAGElike = 'D:\6_GitHubCRC_Git\mprage-like';
 pth_dataCOFITAGEfull = 'C:\Users\christophe\OneDrive - Universite de Liege\bidsified_sub-all_mod-all';
-pth_data = 'D:\ccc_DATA\COFITAGE_MPRAGElike';
+% pth_data = 'D:\ccc_DATA\COFITAGE_MPRAGElike';
+pth_data = 'J:\COFITAGE_MPRAGElike';
 
 addpath(pth_MPRAGElike)
 
 % Copy the data automatically, then unzip
+% 
 % Need to pick up 4 images per subjects:
 % - 1st echo of MTw, PDw, T1w from MPM protocol
 % - the MPRAGE, labelled as 'T1w'
 % simple filter: *T1w*_echo-1*mag* *MTw*_echo-1*mag* *PDw*_echo-1*mag* *-1_T1w*
 
-% MPM 1st echo of weighted images
+% MPM 1st echo of weighted images, pick both .nii.gz and .json files
 fn_MTw = spm_select('FPListRec',pth_dataCOFITAGEfull,'^sub.*MTw.*_echo-1.*mag');
 fn_PDw = spm_select('FPListRec',pth_dataCOFITAGEfull,'^sub.*PDw.*_echo-1.*mag');
 fn_T1w = spm_select('FPListRec',pth_dataCOFITAGEfull,'^sub.*T1w.*_echo-1.*mag');
-% MPRAGE T1w images
-fn_MPR = spm_select('FPListRec',pth_dataCOFITAGEfull,'^sub.*-1_T1w');
+% MPRAGE T1w images, pick both .nii.gz and .json files
+fn_MPR = spm_select('FPListRec',pth_dataCOFITAGEfull,'^sub.*_T1w\.');
 
 % Note that 
 % - some subjects have 2 runs for some MPM acquisition.
-% -there are more subjects with MPRAGE than MPM data.
+% - there are more subjects with MPRAGE than MPM data.
+% - for some sujects (70 & 71) MPM images are misalagned with each other 
 
 % Copy all files, keeping the folder structure but changing the root folder
 fn_all = char(fn_MTw,fn_PDw,fn_T1w,fn_MPR);
@@ -64,7 +67,7 @@ nfn_MTw = size(fn_MTw,1);
 nfn_PDw = size(fn_PDw,1);
 nfn_T1w = size(fn_T1w,1);
 
-if nfn_MTw~=nfn_PWw || nfn_MTw~=nfn_T1w
+if nfn_MTw~=nfn_PDw || nfn_MTw~=nfn_T1w
     error('Mismatched number of images.')
 end
 
@@ -78,6 +81,8 @@ fn_PDw_r2 = spm_select('FPListRec',pth_data,'^sub.*PDw.*-2_echo-1.*mag_MPM.nii$'
 fn_T1w_r2 = spm_select('FPListRec',pth_data,'^sub.*T1w.*-2_echo-1.*mag_MPM.nii$');
 
 % Apply MPRAGE-like
+% Set parameters,
+
 params = struct(...
     'lambda', [NaN 1 30 50 60 70 100 200 400], ...
     'indiv', false, ...
@@ -89,14 +94,13 @@ params = struct(...
 fn_MPRl = cell(nfn_MTw,1);
 est_lambda = zeros(nfn_MTw,1);
 fprintf('\nDealing with %d subjects: \n',nfn_MTw)
-for i_sub = 1:5 % nfn_MTw %
+for i_sub = 1:nfn_MTw % 5 % 
     fn_in = char(fn_T1w(i_sub,:),fn_MTw(i_sub,:),fn_PDw(i_sub,:));
     [fn_out,est_lambda(i_sub)] = hmri_MPRAGElike(fn_in,params);
     fn_MPRl{i_sub} = fn_out;
     fprintf('\t %d / %d \n',i_sub,nfn_MTw)
 end
 fprintf('\n')
-fn_MPR(1,:) = [];
 
 val_lambda = est_lambda;
 save val_lambda val_lambda
