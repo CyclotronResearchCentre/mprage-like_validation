@@ -56,14 +56,6 @@ fn_MTw = spm_select('FPListRec',pth_data,'^sub.*MTw.*-1_echo-1.*mag_MPM.nii$');
 fn_PDw = spm_select('FPListRec',pth_data,'^sub.*PDw.*-1_echo-1.*mag_MPM.nii$');
 fn_T1w = spm_select('FPListRec',pth_data,'^sub.*T1w.*-1_echo-1.*mag_MPM.nii$');
 
-nfn_MTw = size(fn_MTw,1);
-nfn_PDw = size(fn_PDw,1);
-nfn_T1w = size(fn_T1w,1);
-
-if nfn_MTw~=nfn_PDw || nfn_MTw~=nfn_T1w
-    error('Mismatched number of images.')
-end
-
 % MPRAGE T1w images
 fn_MPR = spm_select('FPListRec',pth_data,'^sub.*-1_T1w.nii$');
 
@@ -74,6 +66,14 @@ fn_MPR = spm_select('FPListRec',pth_data,'^sub.*-1_T1w.nii$');
 % fn_T1w(to_remove,:) = [];
 % fn_MPR(to_remove,:) = [];
 
+nfn_MTw = size(fn_MTw,1);
+nfn_PDw = size(fn_PDw,1);
+nfn_T1w = size(fn_T1w,1);
+
+if nfn_MTw~=nfn_PDw || nfn_MTw~=nfn_T1w
+    error('Mismatched number of images.')
+end
+
 % Check those having a "run-2"
 fn_MTw_r2 = spm_select('FPListRec',pth_data,'^sub.*MTw.*-2_echo-1.*mag_MPM.nii$');
 fn_PDw_r2 = spm_select('FPListRec',pth_data,'^sub.*PDw.*-2_echo-1.*mag_MPM.nii$');
@@ -81,11 +81,10 @@ fn_T1w_r2 = spm_select('FPListRec',pth_data,'^sub.*T1w.*-2_echo-1.*mag_MPM.nii$'
 
 % Apply MPRAGE-like
 % Set parameters,
-
 params = struct(...
-    'lambda', [NaN 1 30 50 60 70 100 200 400], ...
+    'lambda', [NaN 1 30 50 60 70 100 200], ...
     'indiv', false, ...
-    'thresh', [], ...
+    'thresh', 0 , ... % [0 500]
     'coreg', false, ...
     'BIDSform', false);
 
@@ -116,7 +115,8 @@ end
 fprintf('\n')
 
 val_lambda = est_lambda;
-save val_lambda val_lambda
+% val_lambda([70 71]) = [];
+% save val_lambda val_lambda
 
 figure, hist(val_lambda)
-fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
+fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
