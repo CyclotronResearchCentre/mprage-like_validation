@@ -119,4 +119,77 @@ val_lambda = est_lambda;
 % save val_lambda val_lambda
 
 figure, hist(val_lambda)
-fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
+fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
+
+%% Comparison using SSIM
+% The point is to look at the similarity between the acquired T1w-MPRAGE
+% and all the other MPRAGE-like images. Then one can check various aspects,
+% using the acquired T1w-MPRAGE as the reference:
+% - look at the SSIM values across the spectrum of lambda values,
+% - look at the SSIM values, for each usbject, between the individually 
+%   estimated/optimized lambda and the one that gives the larget SSIM on
+%   average for the group.
+% This requires all the images to be in the same *voxel* space, so the
+% easiest is to coregister the acquired T1w-MPRAGE onto the original the
+% 1st echo from the MPM T1w image.
+
+% Coregister & reslice 
+% --------------------
+% Put the acquired T1w-MPRAGE image onto 1st echo from the MPM T1w image
+
+% Define empty MatlabBatch
+% matlabbatch{1}.spm.spatial.coreg.estwrite.ref = {'J:\COFITAGE_MPRAGElike\sub-001\ses-Baseline\anat\sub-001_ses-Baseline_acq-T1w_run-1_echo-1_flip-1_mt-off_part-mag_MPM.nii,1'};
+% matlabbatch{1}.spm.spatial.coreg.estwrite.source = {'J:\COFITAGE_MPRAGElike\sub-001\ses-Baseline\anat\sub-001_ses-Baseline_run-1_T1w.nii,1'};
+matlabbatch{1}.spm.spatial.coreg.estwrite.ref = {''};
+matlabbatch{1}.spm.spatial.coreg.estwrite.source = {''};
+matlabbatch{1}.spm.spatial.coreg.estwrite.other = {''};
+matlabbatch{1}.spm.spatial.coreg.estwrite.eoptions.cost_fun = 'nmi';
+matlabbatch{1}.spm.spatial.coreg.estwrite.eoptions.sep = [4 2];
+matlabbatch{1}.spm.spatial.coreg.estwrite.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
+matlabbatch{1}.spm.spatial.coreg.estwrite.eoptions.fwhm = [7 7];
+matlabbatch{1}.spm.spatial.coreg.estwrite.roptions.interp = 4;
+matlabbatch{1}.spm.spatial.coreg.estwrite.roptions.wrap = [0 0 0];
+matlabbatch{1}.spm.spatial.coreg.estwrite.roptions.mask = 0;
+matlabbatch{1}.spm.spatial.coreg.estwrite.roptions.prefix = 'r';
+
+% Loop over subjects: fill Matlabbatch and run it
+l_subj = 1:5;
+% l_subj = 1:nfn_MTw; l_subj([70 71]) = [];
+for i_sub = l_subj
+    % Fill with data
+    matlabbatch{1}.spm.spatial.coreg.estwrite.ref{1} = ...
+        deblank(fn_T1w(i_sub,:));
+    matlabbatch{1}.spm.spatial.coreg.estwrite.source{1} = ...
+        deblank(fn_MPR(i_sub,:));
+    % run
+    spm_jobman('run', matlabbatch);
+end
+
+% Estimate the SSIM
+% -----------------
+% Use the acquired T1w-MPRAGE image as the reference
+fn_rMPR = spm_file(fn_MPR,'prefix','r');
+n_MPRl = numel(params.lambda);
+
+% Loop over subjects: load the ref image only once, then each MPRAGE-like
+% image individually
+l_subj = 1:5;
+% l_subj = 1:nfn_MTw; l_subj([70 71]) = [];
+SSIM_val = zeros(numel(l_subj),n_MPRl);
+for ii_sub = 1:numel(l_subj)
+    i_sub = l_subj(ii_sub);
+    % Load the ref image
+    img_ref = spm_read_vols(spm_vol(fn_rMPR(i_sub,:)));
+    % Check the MPRlike images
+    fn_MPRl_sub = fn_MPRl{i_sub};
+    % Loop over the MPRAGE-like images and estimate SSIM
+    for i_lam = 1:n_MPRl
+        img_MPRl = spm_read_vols(spm_vol(fn_MPRl_sub(i_lam,:)));
+        L = max(img_MPRl(:))-min(img_MPRl(:));
+%         SSIM_val(ii_sub,i_lam) = ssim(img_MPRl,img_ref,'DynamicRange',L);
+        SSIM_val_sub1(i_lam) = ssim(img_MPRl,img_ref,'DynamicRange',L);
+%         score = msssim3d(img_MPRl,img_ref)
+    end
+end
+
+
