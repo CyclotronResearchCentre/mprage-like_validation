@@ -74,10 +74,10 @@ if nfn_MTw~=nfn_PDw || nfn_MTw~=nfn_T1w
     error('Mismatched number of images.')
 end
 
-% Check those having a "run-2"
-fn_MTw_r2 = spm_select('FPListRec',pth_data,'^sub.*MTw.*-2_echo-1.*mag_MPM.nii$');
-fn_PDw_r2 = spm_select('FPListRec',pth_data,'^sub.*PDw.*-2_echo-1.*mag_MPM.nii$');
-fn_T1w_r2 = spm_select('FPListRec',pth_data,'^sub.*T1w.*-2_echo-1.*mag_MPM.nii$');
+% % Check those having a "run-2"
+% fn_MTw_r2 = spm_select('FPListRec',pth_data,'^sub.*MTw.*-2_echo-1.*mag_MPM.nii$');
+% fn_PDw_r2 = spm_select('FPListRec',pth_data,'^sub.*PDw.*-2_echo-1.*mag_MPM.nii$');
+% fn_T1w_r2 = spm_select('FPListRec',pth_data,'^sub.*T1w.*-2_echo-1.*mag_MPM.nii$');
 
 % Apply MPRAGE-like
 % Set parameters,
@@ -92,7 +92,7 @@ params = struct(...
 % -> files labelled with lambda values + json file with lambda values
 % params.lambda = [1 30 50 60 70 100 200 400];
 % Find the optimal lambda value -> just json file with lambda value
-params.lambda = NaN;
+% params.lambda = NaN;
 % test case where 2 values of lambda are identical
 % params.lambda = [60 60];
 
@@ -103,6 +103,7 @@ fn_MPRl = cell(nfn_MTw,1);
 est_lambda = zeros(nfn_MTw,1);
 fprintf('\nDealing with %d subjects: \n',nfn_MTw)
 for i_sub = 1:nfn_MTw % 5 % 
+    fprintf('\t %d / %d \n',i_sub,nfn_MTw)
     fn_in = char(fn_T1w(i_sub,:),fn_MTw(i_sub,:),fn_PDw(i_sub,:));
     if any(isnan(params.lambda))
         [fn_out,est_lambda(i_sub)] = hmri_MPRAGElike(fn_in,params);
@@ -110,13 +111,14 @@ for i_sub = 1:nfn_MTw % 5 %
         fn_out = hmri_MPRAGElike(fn_in,params);
     end
     fn_MPRl{i_sub} = fn_out;
-    fprintf('\t %d / %d \n',i_sub,nfn_MTw)
 end
 fprintf('\n')
 
 val_lambda = est_lambda;
 % val_lambda([70 71]) = [];
+% fn_val_lambda = 'val_lambda.tsv';
 % save val_lambda val_lambda
+% spm_save(fn_val_lambda,val_lambda)
 
 figure, hist(val_lambda)
 fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
@@ -153,7 +155,8 @@ matlabbatch{1}.spm.spatial.coreg.estwrite.roptions.mask = 0;
 matlabbatch{1}.spm.spatial.coreg.estwrite.roptions.prefix = 'r';
 
 % Loop over subjects: fill Matlabbatch and run it
-l_subj = 1:5;
+% l_subj = 1:5;
+l_subj = 1:nfn_MTw;
 % l_subj = 1:nfn_MTw; l_subj([70 71]) = [];
 for i_sub = l_subj
     % Fill with data
@@ -173,16 +176,20 @@ n_MPRl = numel(params.lambda);
 
 % Loop over subjects: load the ref image only once, then each MPRAGE-like
 % image individually
-l_subj = 1:5;
-% l_subj = 1:nfn_MTw; l_subj([70 71]) = [];
+% l_subj = 1:5;
+l_subj = 1:nfn_MTw; % l_subj([70 71]) = [];
 SSIM_val = zeros(numel(l_subj),n_MPRl);
+fn_SSIM_val = 'SSIM_val.tsv';
+fprintf('\nDealing with %d subjects: \n',numel(l_subj))
 for ii_sub = 1:numel(l_subj)
+    fprintf('\t %d / %d \n',ii_sub,nfn_MTw)
     i_sub = l_subj(ii_sub);
     % Load the ref image
     img_ref = spm_read_vols(spm_vol(fn_rMPR(i_sub,:)));
     % Check the MPRlike images
     fn_MPRl_sub = fn_MPRl{i_sub};
     % Loop over the MPRAGE-like images and estimate SSIM
+    SSIM_val_sub1 = zeros(1,n_MPRl);
     for i_lam = 1:n_MPRl
         img_MPRl = spm_read_vols(spm_vol(fn_MPRl_sub(i_lam,:)));
         L = max(img_MPRl(:))-min(img_MPRl(:));
@@ -190,6 +197,9 @@ for ii_sub = 1:numel(l_subj)
         SSIM_val_sub1(i_lam) = ssim(img_MPRl,img_ref,'DynamicRange',L);
 %         score = msssim3d(img_MPRl,img_ref)
     end
+    SSIM_val(ii_sub,:) = SSIM_val_sub1;
+    % save table
+    spm_save(fn_SSIM_val,SSIM_val)
 end
 
 
