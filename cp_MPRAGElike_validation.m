@@ -42,6 +42,10 @@ for ii=1:size(fn_all,1)
     copyfile(fn_src, fn_tgt);
 end
 
+% delete #70 and #71 to keep things simple
+rmdir(fullfile(pth_data,'sub-070'),'s')
+rmdir(fullfile(pth_data,'sub-071'),'s')
+
 % Unzip all the NIfTI files
 flag = struct(...
     'filt','^.*\.gz$',... % pick all .gz files
@@ -50,6 +54,7 @@ flag = struct(...
 fn_out = cp_gunzip(pth_data, flag);
 
 %% Apply on data
+% in local folder
 
 % Collect the data, only from "run-1"
 fn_MTw = spm_select('FPListRec',pth_data,'^sub.*MTw.*-1_echo-1.*mag_MPM.nii$');
@@ -69,6 +74,7 @@ fn_MPR = spm_select('FPListRec',pth_data,'^sub.*-1_T1w.nii$');
 nfn_MTw = size(fn_MTw,1);
 nfn_PDw = size(fn_PDw,1);
 nfn_T1w = size(fn_T1w,1);
+fn_MPR = fn_MPR(1:nfn_MTw,:)
 
 if nfn_MTw~=nfn_PDw || nfn_MTw~=nfn_T1w
     error('Mismatched number of images.')
@@ -82,9 +88,9 @@ end
 % Apply MPRAGE-like
 % Set parameters,
 params = struct(...
-    'lambda', [NaN 1 30 50 60 70 100 200], ...
+    'lambda', [NaN 0 15 30 45 60 75 90], ...
     'indiv', false, ...
-    'thresh', 0 , ... % [0 500]
+    'thresh', [0 5] , ... % 0 % [0 500]
     'coreg', false, ...
     'BIDSform', false);
 
@@ -95,6 +101,9 @@ params = struct(...
 % params.lambda = NaN;
 % test case where 2 values of lambda are identical
 % params.lambda = [60 60];
+% Add value 0 and 150
+% params.lambda = [0 150] ;
+% params.lambda = [NaN 0 1 30 50 60 70 100 150 200]
 
 % Apply on a bunch of subjects, collect 
 % - file name sof generated images
@@ -116,12 +125,21 @@ fprintf('\n')
 
 val_lambda = est_lambda;
 % val_lambda([70 71]) = [];
-% fn_val_lambda = 'val_lambda.tsv';
+fn_val_lambda = 'val_lambda.tsv';
+spm_save(fn_val_lambda,val_lambda)
 % save val_lambda val_lambda
-% spm_save(fn_val_lambda,val_lambda)
 
 figure, hist(val_lambda)
 fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
+
+% % Collect fn_MPRl data afterwards
+% fn_MPRl = cell(nfn_MTw,1);
+% for i_sub = 1:nfn_MTw
+%     pth_i_sub = spm_file(fn_T1w(i_sub,:),'path');
+%     fn_MPRl{i_sub} = spm_select('FPList',pth_i_sub, ...
+%         '^sub.*MPRAGElike-.*\.nii$');
+% end
+
 
 %% Comparison using SSIM
 % The point is to look at the similarity between the acquired T1w-MPRAGE
@@ -140,8 +158,6 @@ fprintf('\nMean & std : %f +/- %f\n',mean(val_lambda), std(val_lambda))
 % Put the acquired T1w-MPRAGE image onto 1st echo from the MPM T1w image
 
 % Define empty MatlabBatch
-% matlabbatch{1}.spm.spatial.coreg.estwrite.ref = {'J:\COFITAGE_MPRAGElike\sub-001\ses-Baseline\anat\sub-001_ses-Baseline_acq-T1w_run-1_echo-1_flip-1_mt-off_part-mag_MPM.nii,1'};
-% matlabbatch{1}.spm.spatial.coreg.estwrite.source = {'J:\COFITAGE_MPRAGElike\sub-001\ses-Baseline\anat\sub-001_ses-Baseline_run-1_T1w.nii,1'};
 matlabbatch{1}.spm.spatial.coreg.estwrite.ref = {''};
 matlabbatch{1}.spm.spatial.coreg.estwrite.source = {''};
 matlabbatch{1}.spm.spatial.coreg.estwrite.other = {''};
@@ -167,6 +183,9 @@ for i_sub = l_subj
     % run
     spm_jobman('run', matlabbatch);
 end
+fn_rMPR = spm_file(fn_MPR,'prefix','r');
+
+
 
 % Estimate the SSIM
 % -----------------
@@ -176,30 +195,48 @@ n_MPRl = numel(params.lambda);
 
 % Loop over subjects: load the ref image only once, then each MPRAGE-like
 % image individually
-% l_subj = 1:5;
-l_subj = 1:nfn_MTw; % l_subj([70 71]) = [];
+to_remSSIM = 48; % Missing T1w subject -> mismatch between MPRl and MPRo
+
+l_subj = 1:nfn_MTw; l_subj(to_remSSIM) = [];
 SSIM_val = zeros(numel(l_subj),n_MPRl);
 fn_SSIM_val = 'SSIM_val.tsv';
 fprintf('\nDealing with %d subjects: \n',numel(l_subj))
-for ii_sub = 1:numel(l_subj)
-    fprintf('\t %d / %d \n',ii_sub,nfn_MTw)
+
+SSIM_par = struct(...
+    'MPRo_max', 800, ...
+    'MPRl_max', 5);
+SSIM_par.Mratio = SSIM_par.MPRl_max / SSIM_par.MPRo_max;
+nl_subj = numel(l_subj);
+for ii_sub = 1:nl_subj
+    fprintf('\t %d / %d \n',ii_sub,nl_subj)
     i_sub = l_subj(ii_sub);
     % Load the ref image
-    img_ref = spm_read_vols(spm_vol(fn_rMPR(i_sub,:)));
+    img_ref = spm_read_vols(spm_vol(fn_rMPR(ii_sub,:)));
+    img_ref(img_ref>SSIM_par.MPRo_max) = 0;
+%     img_ref = img_ref*SSIM_par.Mratio;
     % Check the MPRlike images
     fn_MPRl_sub = fn_MPRl{i_sub};
     % Loop over the MPRAGE-like images and estimate SSIM
-    SSIM_val_sub1 = zeros(1,n_MPRl);
+    SSIM_val_sub = zeros(1,n_MPRl);
     for i_lam = 1:n_MPRl
         img_MPRl = spm_read_vols(spm_vol(fn_MPRl_sub(i_lam,:)));
-        L = max(img_MPRl(:))-min(img_MPRl(:));
-%         SSIM_val(ii_sub,i_lam) = ssim(img_MPRl,img_ref,'DynamicRange',L);
-        SSIM_val_sub1(i_lam) = ssim(img_MPRl,img_ref,'DynamicRange',L);
+        img_MPRl(img_MPRl>SSIM_par.MPRl_max) = 0;
+%         L = max(img_MPRl(:))-min(img_MPRl(:));
+%         L = 1; % L = 3;
+%         SSIM_val_sub1(i_lam) = ssim(img_MPRl,img_ref,'DynamicRange',L);
+%         SSIM_val_sub1_2(i_lam) = ssim(img_MPRl,img_ref)
+        SSIM_val_sub(i_lam) = ssim(uint8(img_MPRl),uint8(img_ref));
 %         score = msssim3d(img_MPRl,img_ref)
     end
-    SSIM_val(ii_sub,:) = SSIM_val_sub1;
+    SSIM_val(ii_sub,:) = SSIM_val_sub;
     % save table
     spm_save(fn_SSIM_val,SSIM_val)
 end
 
+mean(SSIM_val)
+std(SSIM_val)
 
+
+fn_ref = fn_rMPR(i_sub,:)
+fn_tst = fn_MPRl{i_sub}
+SSIM = cp_SSIMglobal(fn_ref, fn_tst)
